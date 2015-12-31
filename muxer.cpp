@@ -311,7 +311,6 @@ bool Muxer::WriteNaluWithSei(const uint8_t *nalu, int nalu_len,
   int sei_size = 0;
   uint8_t *sei_data = nullptr;
   ConstructSei(data, data_len, &sei_data, &sei_size);
-  std::cerr << "sei size " << sei_size << std::endl;
 
   uint8_t *pkt_data = new uint8_t[sei_size + nalu_len];
   memcpy(pkt_data, sei_data, sei_size);
@@ -327,7 +326,7 @@ bool Muxer::WriteNaluWithSei(const uint8_t *nalu, int nalu_len,
   pkt.flags = is_key ? 1 : 0;
 
   if (is_key) {
-    std::cerr << "write key sei" << std::endl;
+//    std::cerr << "write key sei" << std::endl;
   }
 
   pkt.data = pkt_data;
