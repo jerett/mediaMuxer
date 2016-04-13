@@ -22,7 +22,7 @@ bool Muxer::SetMetaData(const char *key, const char *val) noexcept(true) {
   return true;
 }
 
-bool Muxer::Open(std::map<std::string, std::string> &options) noexcept(true) {
+bool Muxer::Open(const std::map<std::string, std::string> &options) noexcept(true) {
   int ret = avformat_alloc_output_context2(&out_context_,
                                            nullptr,
                                            output_format_.data(),
@@ -66,7 +66,8 @@ bool Muxer::AddAudioStream(const uint8_t *aac_header,
 bool Muxer::AddVideoStream(int width,
                            int height,
                            const uint8_t *video_header,
-                           int header_size) noexcept(true) {
+                           int header_size,
+                           const std::map<std::string, std::string> &options) noexcept(true) {
   video_stream_ = avformat_new_stream(out_context_, nullptr);
   if (video_stream_ == 0) {
     std::cerr << "alloc video stream err" << std::endl;
@@ -87,6 +88,9 @@ bool Muxer::AddVideoStream(int width,
 
   if (out_context_->oformat->flags & AVFMT_GLOBALHEADER) {
     vCodecContext->flags |= CODEC_FLAG_GLOBAL_HEADER;
+  }
+  for(const auto &option : options) {
+    av_dict_set(&video_stream_->metadata, option.first.c_str(), option.second.c_str(), 0);
   }
   return true;
 }

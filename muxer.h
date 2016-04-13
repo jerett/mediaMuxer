@@ -24,14 +24,23 @@ class Muxer {
     Close();
   }
   
-  bool Open(std::map<std::string, std::string> &options) noexcept(true);
+  /*
+   * @param options: set context opt
+   *
+   */
+  bool Open(const std::map<std::string, std::string> &options) noexcept(true);
 
   bool Close() noexcept(true);
   
+  /*
+   * @param options: set stream dict
+   *
+   */
   bool AddVideoStream(int width,
                       int height,
                       const uint8_t *video_headrer,
-                      int header_size) noexcept(true);
+                      int header_size,
+                      const std::map<std::string, std::string> &options) noexcept(true);
 
   bool AddAudioStream(const uint8_t *aac_header, int header_size) noexcept(true);
 
