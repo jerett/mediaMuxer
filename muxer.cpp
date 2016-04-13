@@ -3,32 +3,18 @@
 #define __STDC_CONSTANT_MACROS
 extern "C" {
 #include <libavformat/avformat.h>
+#include <libavutil/opt.h>
 }
 #include <iostream>
 
 namespace ins
 {
-std::unique_ptr<Muxer> Muxer::CreateMuxer(const std::string &format,
-                                          const std::string &output_file)
-noexcept(true) {
-  try {
-    std::unique_ptr<Muxer> muxer(new Muxer(format, output_file));
-    return muxer;
-  } catch (std::runtime_error err) {
-    return nullptr;
-  }
-}
 
 Muxer::Muxer(const std::string &format,
-             const std::string &output_file) noexcept(false)
-    : output_file_(output_file), output_format_(format) {
+             const std::string &output_file) noexcept(true)
+  :output_file_(output_file), output_format_(format) {
   av_register_all();
   avformat_network_init();
-//  av_log_set_level(AV_LOG_TRACE);
-
-  if (!Open()) {
-    throw std::runtime_error("Create Muxer Error");
-  }
 }
 
 bool Muxer::SetMetaData(const char *key, const char *val) noexcept(true) {
@@ -36,11 +22,15 @@ bool Muxer::SetMetaData(const char *key, const char *val) noexcept(true) {
   return true;
 }
 
-bool Muxer::Open() noexcept(true) {
+bool Muxer::Open(std::map<std::string, std::string> &options) noexcept(true) {
   int ret = avformat_alloc_output_context2(&out_context_,
                                            nullptr,
                                            output_format_.data(),
                                            output_file_.data());
+  out_context_->oformat->flags |= AVFMT_ALLOW_FLUSH;
+  for(const auto &option : options) {
+    av_opt_set(out_context_->priv_data, option.first.c_str(), option.second.c_str(), 0);
+  }
   return ret >= 0;
 }
 
@@ -182,6 +172,13 @@ bool Muxer::WriteH264Nalu(const uint8_t *nalu,
                           double timestamp) noexcept(true) {
   if (!out_context_ || !open_) {
     std::cerr << "try write nalu when not Open " << std::endl;
+    return true;
+  }
+  
+  if (nalu == nullptr) {
+    write_mtx_.lock();
+    av_write_frame(out_context_, nullptr);
+    write_mtx_.unlock();
     return true;
   }
   unsigned char type = nalu[4];

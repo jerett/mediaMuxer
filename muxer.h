@@ -4,6 +4,7 @@
 #include <string>
 #include <mutex>
 #include <memory>
+#include <map>
 
 struct AVFormatContext;
 struct AVStream;
@@ -14,28 +15,25 @@ namespace ins
 {
 class Muxer {
  public:
-  static std::unique_ptr<Muxer> CreateMuxer(const std::string &format,
-                                            const std::string &output_file)
-      noexcept(true);
   /**
    * can throw std::runtime_error
    */
-  Muxer(const std::string &format, const std::string &output_file)
-  noexcept(false);
+  Muxer(const std::string &format, const std::string &output_file) noexcept(true);
 
   ~Muxer() noexcept(true) {
     Close();
   }
+  
+  bool Open(std::map<std::string, std::string> &options) noexcept(true);
 
   bool Close() noexcept(true);
-
+  
   bool AddVideoStream(int width,
                       int height,
                       const uint8_t *video_headrer,
                       int header_size) noexcept(true);
 
-  bool
-      AddAudioStream(const uint8_t *aac_header, int header_size) noexcept(true);
+  bool AddAudioStream(const uint8_t *aac_header, int header_size) noexcept(true);
 
   bool SetMetaData(const char *key, const char *val) noexcept(true);
 
@@ -53,9 +51,6 @@ class Muxer {
                         double timestamp) noexcept(true);
 
   bool WriteAAC(const uint8_t *aac, int size, double timestamp) noexcept(true);
-
- private:
-  bool Open() noexcept(true);
 
  private:
   std::string output_format_;
