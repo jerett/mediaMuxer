@@ -10,11 +10,21 @@ struct AVFormatContext;
 struct AVStream;
 struct AVCodecContext;
 struct AVCodec;
+struct AVIOInterruptCB;
 
 namespace ins
 {
+
+class Muxer;
+int InterruptCallBack(void*);
+std::string FFmpegErrorString(int code);
+
 class Muxer {
- public:
+public:
+  enum AudioChannelLayout {
+    MONO,
+    STEREO,
+  };
   /**
    * can throw std::runtime_error
    */
@@ -23,15 +33,23 @@ class Muxer {
   ~Muxer() noexcept(true) {
     Close();
   }
-  
+
   /*
    * @param options: set context opt
    *
    */
   bool Open(const std::map<std::string, std::string> &options) noexcept(true);
 
+  /**
+   *  只有当Close前,如果发的是rtmp直播流,需要调用次函数;
+   *  否则,可能造成文件损坏
+   */
+  void Interrupt() noexcept {
+    io_interrupt_result_ = true;
+  }
+
   bool Close() noexcept(true);
-  
+
   /*
    * @param options: set stream dict
    *
@@ -42,7 +60,13 @@ class Muxer {
                       int header_size,
                       const std::map<std::string, std::string> &options) noexcept(true);
 
-  bool AddAudioStream(const uint8_t *aac_header, int header_size) noexcept(true);
+  bool AddAudioStream(const uint8_t *aac_header,
+                             int header_size,
+                             int sample_rate,
+                             AudioChannelLayout channel_layout,
+                             int channels,
+                             int bitrate) noexcept(true);
+//  bool AddAudioStream(const uint8_t *aac_header, int header_size) noexcept(true);
 
   bool SetMetaData(const char *key, const char *val) noexcept(true);
 
@@ -61,15 +85,20 @@ class Muxer {
 
   bool WriteAAC(const uint8_t *aac, int size, double timestamp) noexcept(true);
 
- private:
+private:
+  friend int InterruptCallBack(void*);
+
+private:
   std::string output_format_;
   std::string output_file_;
 
   AVFormatContext *out_context_ = nullptr;
   AVStream *video_stream_ = nullptr;
   AVStream *audio_stream_ = nullptr;
+  std::shared_ptr<AVIOInterruptCB> interrupt_cb_;
 
   bool open_ = false;
+  bool io_interrupt_result_ = false;
   std::mutex write_mtx_;
 };
 
