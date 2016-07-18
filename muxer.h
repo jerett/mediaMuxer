@@ -25,12 +25,10 @@ public:
     MONO,
     STEREO,
   };
-  /**
-   * can throw std::runtime_error
-   */
-  Muxer(const std::string &format, const std::string &output_file) noexcept(true);
 
-  ~Muxer() noexcept(true) {
+  Muxer(const std::string &format, const std::string &output_file) noexcept;
+
+  ~Muxer() noexcept {
     Close();
   }
 
@@ -38,7 +36,7 @@ public:
    * @param options: set context opt
    *
    */
-  bool Open(const std::map<std::string, std::string> &options) noexcept(true);
+  bool Open(const std::map<std::string, std::string> &options) noexcept;
 
   /**
    *  只有当Close前,如果发的是rtmp直播流,需要调用次函数;
@@ -48,7 +46,7 @@ public:
     io_interrupt_result_ = true;
   }
 
-  bool Close() noexcept(true);
+  bool Close() noexcept;
 
   /*
    * @param options: set stream dict
@@ -58,32 +56,27 @@ public:
                       int height,
                       const uint8_t *video_headrer,
                       int header_size,
-                      const std::map<std::string, std::string> &options) noexcept(true);
+                      const std::map<std::string, std::string> &options) noexcept;
 
   bool AddAudioStream(const uint8_t *aac_header,
-                             int header_size,
-                             int sample_rate,
-                             AudioChannelLayout channel_layout,
-                             int channels,
-                             int bitrate) noexcept(true);
+                      int header_size,
+                      int sample_rate,
+                      AudioChannelLayout channel_layout,
+                      int channels,
+                      int bitrate) noexcept;
 //  bool AddAudioStream(const uint8_t *aac_header, int header_size) noexcept(true);
 
-  bool SetMetaData(const char *key, const char *val) noexcept(true);
+  bool SetMetaData(const char *key, const char *val) noexcept;
 
-  bool WriteHeader() noexcept(true);
+  bool WriteHeader() noexcept;
 
-  bool WriteH264Nalu(const uint8_t *nalu,
-                     int nalu_len,
-                     double timestamp) noexcept(true);
+  bool WriteH264Nalu(const uint8_t *nalu, int nalu_len, int64_t pts, int64_t dts) noexcept;
 
-  void ConstructSei
-      (const uint8_t *src, uint8_t len, uint8_t **out_buf, int *out_len);
+  void ConstructSei(const uint8_t *src, uint8_t len, uint8_t **out_buf, int *out_len);
 
-  bool WriteNaluWithSei(const uint8_t *nalu, int nalu_len,
-                        const uint8_t *data, int len,
-                        double timestamp) noexcept(true);
+  bool WriteNaluWithSei(const uint8_t *nalu, int nalu_len, const uint8_t *data, int len, int64_t pts, int64_t dts) noexcept;
 
-  bool WriteAAC(const uint8_t *aac, int size, double timestamp) noexcept(true);
+  bool WriteAAC(const uint8_t *aac, int size, int64_t pts) noexcept;
 
 private:
   friend int InterruptCallBack(void*);

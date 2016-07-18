@@ -23,7 +23,7 @@ std::string FFmpegErrorString(int code)  {
 }
 
 Muxer::Muxer(const std::string &format,
-             const std::string &output_file) noexcept(true)
+             const std::string &output_file) noexcept
   :output_file_(output_file), output_format_(format) {
   av_register_all();
   avformat_network_init();
@@ -32,12 +32,12 @@ Muxer::Muxer(const std::string &format,
   interrupt_cb_->opaque = this;
 }
 
-bool Muxer::SetMetaData(const char *key, const char *val) noexcept(true) {
+bool Muxer::SetMetaData(const char *key, const char *val) noexcept {
   av_dict_set(&out_context_->metadata, key, val, 0);
   return true;
 }
 
-bool Muxer::Open(const std::map<std::string, std::string> &options) noexcept(true) {
+bool Muxer::Open(const std::map<std::string, std::string> &options) noexcept {
   io_interrupt_result_ = false;
   int ret = avformat_alloc_output_context2(&out_context_,
                                            nullptr,
@@ -55,7 +55,7 @@ bool Muxer::AddAudioStream(const uint8_t *aac_header,
                            int sample_rate,
                            AudioChannelLayout channel_layout,
                            int channels,
-                           int bitrate) noexcept(true) {
+                           int bitrate) noexcept {
   audio_stream_ = avformat_new_stream(out_context_, nullptr);
   if (audio_stream_ == nullptr) {
     std::cerr << "new audio stream err" << std::endl;
@@ -102,7 +102,7 @@ bool Muxer::AddVideoStream(int width,
                            int height,
                            const uint8_t *video_header,
                            int header_size,
-                           const std::map<std::string, std::string> &options) noexcept(true) {
+                           const std::map<std::string, std::string> &options) noexcept {
   video_stream_ = avformat_new_stream(out_context_, nullptr);
   if (video_stream_ == 0) {
     std::cerr << "alloc video stream err" << std::endl;
@@ -130,7 +130,7 @@ bool Muxer::AddVideoStream(int width,
   return true;
 }
 
-bool Muxer::WriteHeader() noexcept(true) {
+bool Muxer::WriteHeader() noexcept {
   int ret;
   if (!(out_context_->oformat->flags & AVFMT_NOFILE)) {
 //    ret = avio_open(&out_context_->pb, output_file_.data(), AVIO_FLAG_WRITE);
@@ -152,7 +152,7 @@ bool Muxer::WriteHeader() noexcept(true) {
   return true;
 }
 
-bool Muxer::Close() noexcept(true) {
+bool Muxer::Close() noexcept {
   std::lock_guard<std::mutex> lck(write_mtx_);
   if (open_) {
     open_ = false;
@@ -172,9 +172,7 @@ bool Muxer::Close() noexcept(true) {
   return true;
 }
 
-bool Muxer::WriteAAC(const uint8_t *aac,
-                     int size,
-                     double timestamp) noexcept(true) {
+bool Muxer::WriteAAC(const uint8_t *aac, int size, int64_t pts) noexcept {
   std::lock_guard<std::mutex> lck(write_mtx_);
   if (!out_context_ || !open_) {
     std::cerr << "try write aac when not Open " << std::endl;
@@ -186,7 +184,9 @@ bool Muxer::WriteAAC(const uint8_t *aac,
   pkt.data = (uint8_t *) aac;
   pkt.size = size;
 
-  pkt.pts = timestamp / av_q2d(audio_stream_->time_base);
+  static AVRational rational = {1, 1000};
+  pkt.pts = av_rescale_q(pts, rational, audio_stream_->time_base);
+//  pkt.pts = pts / 1000.0 / av_q2d(audio_stream_->time_base);
   pkt.dts = pkt.pts;
   pkt.convergence_duration = AV_NOPTS_VALUE;
   pkt.pos = -1;
@@ -202,7 +202,8 @@ bool Muxer::WriteAAC(const uint8_t *aac,
 
 bool Muxer::WriteH264Nalu(const uint8_t *nalu,
                           int nalu_len,
-                          double timestamp) noexcept(true) {
+                          int64_t pts,
+                          int64_t dts) noexcept {
   std::lock_guard<std::mutex> lck(write_mtx_);
   if (!out_context_ || !open_) {
     std::cerr << "try write nalu when not Open " << std::endl;
@@ -213,25 +214,36 @@ bool Muxer::WriteH264Nalu(const uint8_t *nalu,
     av_write_frame(out_context_, nullptr);
     return true;
   }
-  unsigned char type = nalu[4];
   int len = nalu_len;
   AVPacket pkt = {0};
   av_init_packet(&pkt);
-  bool isKeyFrame = ((type & 0x1F) == 5);
 
-  if (isKeyFrame) {
-    pkt.flags = 1;
+  unsigned char type;
+  if (nalu[2] == 0x01) {
+    type = nalu[3];
+  } else if (nalu[3] == 0x01) {
+    type = nalu[4];
+  }
+  bool is_key = ((type & 0x1f) == 5 || (type & 0x1f) == 7);
+
+  if (is_key) {
+    pkt.flags = AV_PKT_FLAG_KEY;
   } else {
     pkt.flags = 0;
   }
+//  printf("%0x %0x %0x %0x %0x %d\n", nalu[0], nalu[1], nalu[2], nalu[3], nalu[4], pkt.flags);
 
   pkt.data = (uint8_t *) nalu;
   pkt.size = len;
   pkt.stream_index = video_stream_->index;
 
-  int64_t pts = timestamp / av_q2d(video_stream_->time_base);
-  pkt.pts = pts;
-  pkt.dts = pkt.pts;
+  static AVRational rational = {1, 1000};
+  pkt.pts = av_rescale_q(pts, rational, video_stream_->time_base);
+  pkt.dts = av_rescale_q(dts, rational, video_stream_->time_base);
+//  std::cerr << pts << "  " << dts << " pts:" << pkt.pts << "dts:" << pkt.dts << std::endl;
+//  int64_t pts = pts / av_q2d(video_stream_->time_base);
+//  pkt.pts = pts;
+//  pkt.dts = pkt.pts;
   pkt.convergence_duration = AV_NOPTS_VALUE;
   pkt.pos = -1;
 
@@ -329,7 +341,7 @@ void Muxer::ConstructSei(const uint8_t *src,
 
 bool Muxer::WriteNaluWithSei(const uint8_t *nalu, int nalu_len,
                              const uint8_t *data, int data_len,
-                             double timestamp) noexcept(true) {
+                             int64_t pts, int64_t dts) noexcept {
   std::lock_guard<std::mutex> lck(write_mtx_);
   if (!out_context_ || !open_) {
     std::cerr << "try write sei when not Open " << std::endl;
@@ -350,8 +362,15 @@ bool Muxer::WriteNaluWithSei(const uint8_t *nalu, int nalu_len,
 
   AVPacket pkt = {0};
   av_init_packet(&pkt);
-  bool is_key = ((nalu[4] & 0x1F) == 5);
-  pkt.flags = is_key ? 1 : 0;
+
+  unsigned char type;
+  if (nalu[2] == 0x01) {
+    type = nalu[3];
+  } else if (nalu[3] == 0x01) {
+    type = nalu[4];
+  }
+  bool is_key = ((type & 0x1f) == 5 || (type & 0x1f) == 7);
+  pkt.flags = is_key ? AV_PKT_FLAG_KEY : 0;
 
   if (is_key) {
 //    std::cerr << "write key sei" << std::endl;
@@ -361,9 +380,12 @@ bool Muxer::WriteNaluWithSei(const uint8_t *nalu, int nalu_len,
   pkt.size = sei_size + nalu_len;
   pkt.stream_index = video_stream_->index;
 
-  int64_t pts = timestamp / av_q2d(video_stream_->time_base);
-  pkt.pts = pts;
-  pkt.dts = pkt.pts;
+  static AVRational rational = {1, 1000};
+  pkt.pts = av_rescale_q(pts, rational, video_stream_->time_base);
+  pkt.dts = av_rescale_q(dts, rational, video_stream_->time_base);
+//  int64_t pts = pts / av_q2d(video_stream_->time_base);
+//  pkt.pts = pts;
+//  pkt.dts = pkt.pts;
   pkt.convergence_duration = AV_NOPTS_VALUE;
   pkt.pos = -1;
 
