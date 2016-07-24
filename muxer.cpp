@@ -176,7 +176,7 @@ bool Muxer::WriteAAC(const uint8_t *aac, int size, int64_t pts) noexcept {
   std::lock_guard<std::mutex> lck(write_mtx_);
   if (!out_context_ || !open_) {
     std::cerr << "try write aac when not Open " << std::endl;
-    return true;
+    return false;
   }
   AVPacket pkt = {0};
   av_init_packet(&pkt);
@@ -207,7 +207,7 @@ bool Muxer::WriteH264Nalu(const uint8_t *nalu,
   std::lock_guard<std::mutex> lck(write_mtx_);
   if (!out_context_ || !open_) {
     std::cerr << "try write nalu when not Open " << std::endl;
-    return true;
+    return false;
   }
   
   if (nalu == nullptr) {
@@ -345,7 +345,7 @@ bool Muxer::WriteNaluWithSei(const uint8_t *nalu, int nalu_len,
   std::lock_guard<std::mutex> lck(write_mtx_);
   if (!out_context_ || !open_) {
     std::cerr << "try write sei when not Open " << std::endl;
-    return true;
+    return false;
   }
 
   int sei_size = 0;
