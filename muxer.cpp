@@ -137,6 +137,9 @@ bool Muxer::WriteHeader() noexcept {
     ret = avio_open2(&out_context_->pb, output_file_.c_str(), AVIO_FLAG_WRITE, interrupt_cb_.get(), nullptr);
     if (ret < 0) {
       std::cerr << "create oformat failed:" << FFmpegErrorString(ret) << std::endl;
+      if (!(out_context_->oformat->flags & AVFMT_NOFILE)) {
+        avio_close(out_context_->pb);
+      }
       avformat_free_context(out_context_);
       return false;
     }
