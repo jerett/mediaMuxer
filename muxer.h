@@ -70,11 +70,12 @@ public:
 
   bool WriteHeader() noexcept;
 
-  bool WriteH264Nalu(const uint8_t *nalu, int nalu_len, int64_t pts, int64_t dts) noexcept;
+  bool WriteH264Nalu(const uint8_t *nalu, int nalu_len, int64_t pts, int64_t dts, bool is_key) noexcept;
 
   void ConstructSei(const uint8_t *src, uint8_t len, uint8_t **out_buf, int *out_len);
 
-  bool WriteNaluWithSei(const uint8_t *nalu, int nalu_len, const uint8_t *data, int len, int64_t pts, int64_t dts) noexcept;
+  bool WriteNaluWithSei(const uint8_t *nalu, int nalu_len, const uint8_t *data, int len,
+                        int64_t pts, int64_t dts, bool is_key) noexcept;
 
   bool WriteAAC(const uint8_t *aac, int size, int64_t pts) noexcept;
 

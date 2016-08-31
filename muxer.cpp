@@ -206,7 +206,8 @@ bool Muxer::WriteAAC(const uint8_t *aac, int size, int64_t pts) noexcept {
 bool Muxer::WriteH264Nalu(const uint8_t *nalu,
                           int nalu_len,
                           int64_t pts,
-                          int64_t dts) noexcept {
+                          int64_t dts,
+                          bool is_key) noexcept {
   std::lock_guard<std::mutex> lck(write_mtx_);
   if (!out_context_ || !open_) {
     std::cerr << "try write nalu when not Open " << std::endl;
@@ -221,21 +222,15 @@ bool Muxer::WriteH264Nalu(const uint8_t *nalu,
   AVPacket pkt = {0};
   av_init_packet(&pkt);
 
-  unsigned char type;
-  if (nalu[2] == 0x01) {
-    type = nalu[3];
-  } else if (nalu[3] == 0x01) {
-    type = nalu[4];
-  }
-  bool is_key = ((type & 0x1f) == 5 || (type & 0x1f) == 7);
-
-  if (is_key) {
-    pkt.flags = AV_PKT_FLAG_KEY;
-  } else {
-    pkt.flags = 0;
-  }
+//  unsigned char type;
+//  if (nalu[2] == 0x01) {
+//    type = nalu[3];
+//  } else if (nalu[3] == 0x01) {
+//    type = nalu[4];
+//  }
+//  bool is_key = ((type & 0x1f) == 5 || (type & 0x1f) == 7);
+  pkt.flags = is_key ? AV_PKT_FLAG_KEY : 0;
 //  printf("%0x %0x %0x %0x %0x %d\n", nalu[0], nalu[1], nalu[2], nalu[3], nalu[4], pkt.flags);
-
   pkt.data = (uint8_t *) nalu;
   pkt.size = len;
   pkt.stream_index = video_stream_->index;
@@ -344,7 +339,7 @@ void Muxer::ConstructSei(const uint8_t *src,
 
 bool Muxer::WriteNaluWithSei(const uint8_t *nalu, int nalu_len,
                              const uint8_t *data, int data_len,
-                             int64_t pts, int64_t dts) noexcept {
+                             int64_t pts, int64_t dts, bool is_key) noexcept {
   std::lock_guard<std::mutex> lck(write_mtx_);
   if (!out_context_ || !open_) {
     std::cerr << "try write sei when not Open " << std::endl;
@@ -366,13 +361,13 @@ bool Muxer::WriteNaluWithSei(const uint8_t *nalu, int nalu_len,
   AVPacket pkt = {0};
   av_init_packet(&pkt);
 
-  unsigned char type;
-  if (nalu[2] == 0x01) {
-    type = nalu[3];
-  } else if (nalu[3] == 0x01) {
-    type = nalu[4];
-  }
-  bool is_key = ((type & 0x1f) == 5 || (type & 0x1f) == 7);
+//  unsigned char type;
+//  if (nalu[2] == 0x01) {
+//    type = nalu[3];
+//  } else if (nalu[3] == 0x01) {
+//    type = nalu[4];
+//  }
+//  bool is_key = ((type & 0x1f) == 5 || (type & 0x1f) == 7);
   pkt.flags = is_key ? AV_PKT_FLAG_KEY : 0;
 
   if (is_key) {
