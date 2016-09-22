@@ -65,6 +65,7 @@ bool Muxer::AddAudioStream(const uint8_t *aac_header,
   AVCodecContext *audioCodecContext = audio_stream_->codec;
   audioCodecContext->codec_type = AVMEDIA_TYPE_AUDIO;
   audioCodecContext->sample_fmt = AV_SAMPLE_FMT_S16;
+  audioCodecContext->frame_size = 1024;
 //  audioCodecContext->sample_rate = 48000;
 //  audioCodecContext->channel_layout = AV_CH_LAYOUT_MONO;
 //  audioCodecContext->channels = 1;
