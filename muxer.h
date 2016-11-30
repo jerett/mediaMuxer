@@ -81,6 +81,11 @@ public:
 
 private:
   friend int InterruptCallBack(void*);
+  bool WriteVideoPacket(const uint8_t *nalu,
+                        int nalu_len,
+                        int64_t pts,
+                        int64_t dts,
+                        bool is_key);
 
 private:
   std::string output_format_;
@@ -91,6 +96,8 @@ private:
   AVStream *audio_stream_ = nullptr;
   std::shared_ptr<AVIOInterruptCB> interrupt_cb_;
 
+  bool is_first_video_ = false;
+  int64_t last_video_pkt_pts_ = 0;
   bool open_ = false;
   bool io_interrupt_result_ = false;
   std::mutex write_mtx_;

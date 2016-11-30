@@ -204,6 +204,37 @@ bool Muxer::WriteAAC(const uint8_t *aac, int size, int64_t pts) noexcept {
   return ret == 0;
 }
 
+
+bool Muxer::WriteVideoPacket(const uint8_t *nalu, int nalu_len, int64_t pts, int64_t dts, bool is_key) {
+  int len = nalu_len;
+  AVPacket pkt = {0};
+  av_init_packet(&pkt);
+
+  pkt.flags = is_key ? AV_PKT_FLAG_KEY : 0;
+  pkt.data = (uint8_t *) nalu;
+  pkt.size = len;
+  pkt.stream_index = video_stream_->index;
+
+  static AVRational rational = {1, 1000};
+  pkt.pts = av_rescale_q(pts, rational, video_stream_->time_base);
+  pkt.dts = av_rescale_q(dts, rational, video_stream_->time_base);
+  if (!is_first_video_) {
+    last_video_pkt_pts_ = pkt.pts;
+    is_first_video_ = true;
+  }
+  pkt.duration = static_cast<int>(pkt.pts - last_video_pkt_pts_);
+  last_video_pkt_pts_ = pkt.pts;
+//  std::cout << " duration:" << pkt.duration << std::endl;
+  pkt.convergence_duration = AV_NOPTS_VALUE;
+  pkt.pos = -1;
+
+  int ret = av_interleaved_write_frame(out_context_, &pkt);
+  if (ret != 0) {
+    std::cerr << "write video frame err:" << FFmpegErrorString(ret) << std::endl;
+  }
+  return ret == 0;
+}
+
 bool Muxer::WriteH264Nalu(const uint8_t *nalu,
                           int nalu_len,
                           int64_t pts,
@@ -219,38 +250,8 @@ bool Muxer::WriteH264Nalu(const uint8_t *nalu,
     av_write_frame(out_context_, nullptr);
     return true;
   }
-  int len = nalu_len;
-  AVPacket pkt = {0};
-  av_init_packet(&pkt);
 
-//  unsigned char type;
-//  if (nalu[2] == 0x01) {
-//    type = nalu[3];
-//  } else if (nalu[3] == 0x01) {
-//    type = nalu[4];
-//  }
-//  bool is_key = ((type & 0x1f) == 5 || (type & 0x1f) == 7);
-  pkt.flags = is_key ? AV_PKT_FLAG_KEY : 0;
-//  printf("%0x %0x %0x %0x %0x %d\n", nalu[0], nalu[1], nalu[2], nalu[3], nalu[4], pkt.flags);
-  pkt.data = (uint8_t *) nalu;
-  pkt.size = len;
-  pkt.stream_index = video_stream_->index;
-
-  static AVRational rational = {1, 1000};
-  pkt.pts = av_rescale_q(pts, rational, video_stream_->time_base);
-  pkt.dts = av_rescale_q(dts, rational, video_stream_->time_base);
-//  std::cerr << pts << "  " << dts << " pts:" << pkt.pts << "dts:" << pkt.dts << std::endl;
-//  int64_t pts = pts / av_q2d(video_stream_->time_base);
-//  pkt.pts = pts;
-//  pkt.dts = pkt.pts;
-  pkt.convergence_duration = AV_NOPTS_VALUE;
-  pkt.pos = -1;
-
-  int ret = av_interleaved_write_frame(out_context_, &pkt);
-  if (ret != 0) {
-    std::cerr << "write video frame err:" << FFmpegErrorString(ret) << std::endl;
-  }
-  return ret == 0;
+  return WriteVideoPacket(nalu, nalu_len, pts, dts, is_key);
 }
 
 void Muxer::ConstructSei(const uint8_t *src,
@@ -359,42 +360,37 @@ bool Muxer::WriteNaluWithSei(const uint8_t *nalu, int nalu_len,
 //  pkt_data[sei_size+2] = nalu_len >> 8;
 //  pkt_data[sei_size+3] = nalu_len & 0xff;
 
-  AVPacket pkt = {0};
-  av_init_packet(&pkt);
-
-//  unsigned char type;
-//  if (nalu[2] == 0x01) {
-//    type = nalu[3];
-//  } else if (nalu[3] == 0x01) {
-//    type = nalu[4];
+//  AVPacket pkt = {0};
+//  av_init_packet(&pkt);
+//
+//  pkt.flags = is_key ? AV_PKT_FLAG_KEY : 0;
+//
+//  if (is_key) {
+////    std::cerr << "write key sei" << std::endl;
 //  }
-//  bool is_key = ((type & 0x1f) == 5 || (type & 0x1f) == 7);
-  pkt.flags = is_key ? AV_PKT_FLAG_KEY : 0;
+//
+//  pkt.data = pkt_data;
+//  pkt.size = sei_size + nalu_len;
+//  pkt.stream_index = video_stream_->index;
+//
+//  static AVRational rational = {1, 1000};
+//  pkt.pts = av_rescale_q(pts, rational, video_stream_->time_base);
+//  pkt.dts = av_rescale_q(dts, rational, video_stream_->time_base);
+////  int64_t pts = pts / av_q2d(video_stream_->time_base);
+////  pkt.pts = pts;
+////  pkt.dts = pkt.pts;
+//  pkt.convergence_duration = AV_NOPTS_VALUE;
+//  pkt.pos = -1;
+//
+//  int ret = av_interleaved_write_frame(out_context_, &pkt);
+//  delete[] pkt_data;
+//  delete[] sei_data;
+//  if (ret != 0) {
+//    std::cerr << "write video frame err:" << FFmpegErrorString(ret) << std::endl;
+//  }
+//  return ret == 0;
 
-  if (is_key) {
-//    std::cerr << "write key sei" << std::endl;
-  }
-
-  pkt.data = pkt_data;
-  pkt.size = sei_size + nalu_len;
-  pkt.stream_index = video_stream_->index;
-
-  static AVRational rational = {1, 1000};
-  pkt.pts = av_rescale_q(pts, rational, video_stream_->time_base);
-  pkt.dts = av_rescale_q(dts, rational, video_stream_->time_base);
-//  int64_t pts = pts / av_q2d(video_stream_->time_base);
-//  pkt.pts = pts;
-//  pkt.dts = pkt.pts;
-  pkt.convergence_duration = AV_NOPTS_VALUE;
-  pkt.pos = -1;
-
-  int ret = av_interleaved_write_frame(out_context_, &pkt);
-  delete[] pkt_data;
-  delete[] sei_data;
-  if (ret != 0) {
-    std::cerr << "write video frame err:" << FFmpegErrorString(ret) << std::endl;
-  }
-  return ret == 0;
+  return WriteVideoPacket(pkt_data, sei_size + nalu_len, pts, dts, is_key);
 }
 
 }
