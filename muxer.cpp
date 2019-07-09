@@ -61,37 +61,37 @@ bool Muxer::AddAudioStream(const uint8_t *aac_header,
   }
 
   // AVCodecContext *audioCodecContext = audio_stream_->codec;
-  AVCodecParameters *audioCodecContext = audio_stream_->codecpar;
-  audioCodecContext->codec_type = AVMEDIA_TYPE_AUDIO;
-  audioCodecContext->format = AV_SAMPLE_FMT_S16;
-  audioCodecContext->frame_size = 1024;
-  audioCodecContext->sample_rate = sample_rate;
+  AVCodecParameters *audioCodecPar = audio_stream_->codecpar;
+  audioCodecPar->codec_type = AVMEDIA_TYPE_AUDIO;
+  audioCodecPar->format = AV_SAMPLE_FMT_S16;
+  audioCodecPar->frame_size = 1024;
+  audioCodecPar->sample_rate = sample_rate;
   switch (channels) {
     case 1:
-      audioCodecContext->channel_layout = AV_CH_LAYOUT_MONO;
+      audioCodecPar->channel_layout = AV_CH_LAYOUT_MONO;
       break;
     case 2:
-      audioCodecContext->channel_layout = AV_CH_LAYOUT_STEREO;
+      audioCodecPar->channel_layout = AV_CH_LAYOUT_STEREO;
       break;
     default:
       std::cerr << "You should handle here. " << std::endl;
       break;
   }
-  audioCodecContext->channels = channels;
-  audioCodecContext->bit_rate = bitrate;
-  audioCodecContext->codec_id = AV_CODEC_ID_AAC;
+  audioCodecPar->channels = channels;
+  audioCodecPar->bit_rate = bitrate;
+  audioCodecPar->codec_id = AV_CODEC_ID_AAC;
 
   //copy header
   if (aac_header != nullptr) {
-    audioCodecContext->extradata = new uint8_t[header_size];
-    memcpy(audioCodecContext->extradata, aac_header, header_size);
-    audioCodecContext->extradata_size = header_size;
+    audioCodecPar->extradata = new uint8_t[header_size];
+    memcpy(audioCodecPar->extradata, aac_header, header_size);
+    audioCodecPar->extradata_size = header_size;
   } else {
-    audioCodecContext->extradata = nullptr;
-    audioCodecContext->extradata_size = 0;
+    audioCodecPar->extradata = nullptr;
+    audioCodecPar->extradata_size = 0;
   }
 
-  audioCodecContext->codec_tag = 0;
+  audioCodecPar->codec_tag = 0;
   // if (out_context_->oformat->flags & AVFMT_GLOBALHEADER) {
   //   // audioCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
   // }
@@ -109,18 +109,18 @@ bool Muxer::AddVideoStream(int width,
     return false;
   }
 
-  AVCodecParameters *vCodecContext = video_stream_->codecpar;
-  vCodecContext->format = AV_PIX_FMT_YUV420P;
-  vCodecContext->width = width;
-  vCodecContext->height = height;
-  vCodecContext->codec_type = AVMEDIA_TYPE_VIDEO;
-  vCodecContext->codec_id = AV_CODEC_ID_H264;
+  AVCodecParameters *vCodecPar = video_stream_->codecpar;
+  vCodecPar->format = AV_PIX_FMT_YUV420P;
+  vCodecPar->width = width;
+  vCodecPar->height = height;
+  vCodecPar->codec_type = AVMEDIA_TYPE_VIDEO;
+  vCodecPar->codec_id = AV_CODEC_ID_H264;
 
   //copy header
-  vCodecContext->extradata = new uint8_t[header_size];
-  memcpy(vCodecContext->extradata, video_header, header_size);
-  vCodecContext->extradata_size = header_size;
-  vCodecContext->codec_tag = 0;
+  vCodecPar->extradata = new uint8_t[header_size];
+  memcpy(vCodecPar->extradata, video_header, header_size);
+  vCodecPar->extradata_size = header_size;
+  vCodecPar->codec_tag = 0;
   // if (out_context_->oformat->flags & AVFMT_GLOBALHEADER) {
   //   vCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
   // }
@@ -155,7 +155,7 @@ bool Muxer::WriteHeader() {
   return true;
 }
 
-bool Muxer::Close() noexcept {
+bool Muxer::Close() {
   std::lock_guard<std::mutex> lck(write_mtx_);
   if (open_) {
     open_ = false;

@@ -33,11 +33,11 @@ public:
    */
   bool Open(const std::map<std::string, std::string> &options);
 
-  void Interrupt() noexcept {
+  void Interrupt() {
     io_interrupt_result_ = true;
   }
 
-  bool Close() noexcept;
+  bool Close();
 
   /*
    * @param options: set stream dict
