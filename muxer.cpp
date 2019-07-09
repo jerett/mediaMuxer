@@ -6,6 +6,7 @@ extern "C" {
 }
 #include <iostream>
 
+
 namespace jt
 {
 
@@ -22,21 +23,20 @@ std::string FFmpegErrorString(int code)  {
 }
 
 Muxer::Muxer(const std::string &format,
-             const std::string &output_file) noexcept
-  :output_file_(output_file), output_format_(format) {
-  av_register_all();
+             const std::string &output_file)
+  :output_format_(format), output_file_(output_file) {
   avformat_network_init();
   interrupt_cb_.reset(new AVIOInterruptCB);
   interrupt_cb_->callback = InterruptCallBack;
   interrupt_cb_->opaque = this;
 }
 
-bool Muxer::SetMetaData(const char *key, const char *val) noexcept {
+bool Muxer::SetMetaData(const char *key, const char *val) {
   av_dict_set(&out_context_->metadata, key, val, 0);
   return true;
 }
 
-bool Muxer::Open(const std::map<std::string, std::string> &options) noexcept {
+bool Muxer::Open(const std::map<std::string, std::string> &options) {
   io_interrupt_result_ = false;
   int ret = avformat_alloc_output_context2(&out_context_,
                                            nullptr,
@@ -53,16 +53,17 @@ bool Muxer::AddAudioStream(const uint8_t *aac_header,
                            int header_size,
                            int sample_rate,
                            int channels,
-                           int bitrate) noexcept {
+                           int bitrate) {
   audio_stream_ = avformat_new_stream(out_context_, nullptr);
   if (audio_stream_ == nullptr) {
     std::cerr << "new audio stream err" << std::endl;
     return false;
   }
 
-  AVCodecContext *audioCodecContext = audio_stream_->codec;
+  // AVCodecContext *audioCodecContext = audio_stream_->codec;
+  AVCodecParameters *audioCodecContext = audio_stream_->codecpar;
   audioCodecContext->codec_type = AVMEDIA_TYPE_AUDIO;
-  audioCodecContext->sample_fmt = AV_SAMPLE_FMT_S16;
+  audioCodecContext->format = AV_SAMPLE_FMT_S16;
   audioCodecContext->frame_size = 1024;
   audioCodecContext->sample_rate = sample_rate;
   switch (channels) {
@@ -90,9 +91,10 @@ bool Muxer::AddAudioStream(const uint8_t *aac_header,
     audioCodecContext->extradata_size = 0;
   }
 
-  if (out_context_->oformat->flags & AVFMT_GLOBALHEADER) {
-    audioCodecContext->flags |= CODEC_FLAG_GLOBAL_HEADER;
-  }
+  audioCodecContext->codec_tag = 0;
+  // if (out_context_->oformat->flags & AVFMT_GLOBALHEADER) {
+  //   // audioCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+  // }
   return true;
 }
 
@@ -100,15 +102,15 @@ bool Muxer::AddVideoStream(int width,
                            int height,
                            const uint8_t *video_header,
                            int header_size,
-                           const std::map<std::string, std::string> &options) noexcept {
+                           const std::map<std::string, std::string> &options) {
   video_stream_ = avformat_new_stream(out_context_, nullptr);
-  if (video_stream_ == 0) {
+  if (video_stream_ == nullptr) {
     std::cerr << "alloc video stream err" << std::endl;
     return false;
   }
 
-  AVCodecContext *vCodecContext = video_stream_->codec;
-  vCodecContext->pix_fmt = PIX_FMT_YUV420P;
+  AVCodecParameters *vCodecContext = video_stream_->codecpar;
+  vCodecContext->format = AV_PIX_FMT_YUV420P;
   vCodecContext->width = width;
   vCodecContext->height = height;
   vCodecContext->codec_type = AVMEDIA_TYPE_VIDEO;
@@ -118,17 +120,17 @@ bool Muxer::AddVideoStream(int width,
   vCodecContext->extradata = new uint8_t[header_size];
   memcpy(vCodecContext->extradata, video_header, header_size);
   vCodecContext->extradata_size = header_size;
-
-  if (out_context_->oformat->flags & AVFMT_GLOBALHEADER) {
-    vCodecContext->flags |= CODEC_FLAG_GLOBAL_HEADER;
-  }
+  vCodecContext->codec_tag = 0;
+  // if (out_context_->oformat->flags & AVFMT_GLOBALHEADER) {
+  //   vCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+  // }
   for(const auto &option : options) {
     av_dict_set(&video_stream_->metadata, option.first.c_str(), option.second.c_str(), 0);
   }
   return true;
 }
 
-bool Muxer::WriteHeader() noexcept {
+bool Muxer::WriteHeader() {
   int ret;
   if (!(out_context_->oformat->flags & AVFMT_NOFILE)) {
 //    ret = avio_open(&out_context_->pb, output_file_.data(), AVIO_FLAG_WRITE);
@@ -173,7 +175,7 @@ bool Muxer::Close() noexcept {
   return true;
 }
 
-bool Muxer::WriteAAC(const uint8_t *aac, int size, int64_t pts) noexcept {
+bool Muxer::WriteAAC(const uint8_t *aac, int size, int64_t pts) {
   std::lock_guard<std::mutex> lck(write_mtx_);
   if (!out_context_ || !open_) {
     std::cerr << "try write aac when not Open " << std::endl;
@@ -236,7 +238,8 @@ bool Muxer::WriteH264Nalu(const uint8_t *nalu,
                           int nalu_len,
                           int64_t pts,
                           int64_t dts,
-                          bool is_key) noexcept {
+                          bool is_key) {
+    // std::cout << "is key:" << is_key << std::endl;
   std::lock_guard<std::mutex> lck(write_mtx_);
   if (!out_context_ || !open_) {
     std::cerr << "try write nalu when not Open " << std::endl;

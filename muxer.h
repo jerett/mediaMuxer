@@ -21,7 +21,7 @@ std::string FFmpegErrorString(int code);
 
 class Muxer {
 public:
-  Muxer(const std::string &format, const std::string &output_file) noexcept;
+  Muxer(const std::string &format, const std::string &output_file);
 
   ~Muxer() noexcept {
     Close();
@@ -31,7 +31,7 @@ public:
    * @param options: set context opt
    *
    */
-  bool Open(const std::map<std::string, std::string> &options) noexcept;
+  bool Open(const std::map<std::string, std::string> &options);
 
   void Interrupt() noexcept {
     io_interrupt_result_ = true;
@@ -47,21 +47,18 @@ public:
                       int height,
                       const uint8_t *video_headrer,
                       int header_size,
-                      const std::map<std::string, std::string> &options) noexcept;
+                      const std::map<std::string, std::string> &options);
 
   bool AddAudioStream(const uint8_t *aac_header,
                       int header_size,
                       int sample_rate,
                       int channels,
-                      int bitrate) noexcept;
+                      int bitrate);
 
-  bool SetMetaData(const char *key, const char *val) noexcept;
-
-  bool WriteHeader() noexcept;
-
-  bool WriteH264Nalu(const uint8_t *nalu, int nalu_len, int64_t pts, int64_t dts, bool is_key) noexcept;
-
-  bool WriteAAC(const uint8_t *aac, int size, int64_t pts) noexcept;
+  bool SetMetaData(const char *key, const char *val);
+  bool WriteHeader();
+  bool WriteH264Nalu(const uint8_t *nalu, int nalu_len, int64_t pts, int64_t dts, bool is_key);
+  bool WriteAAC(const uint8_t *aac, int size, int64_t pts);
 
 private:
   friend int InterruptCallBack(void*);
